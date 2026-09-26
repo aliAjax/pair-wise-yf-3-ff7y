@@ -1,11 +1,13 @@
 import type { SmellMemory } from '../utils/constants';
 
+// 演示用口令（只保存加盐哈希）：家人可见 = 2468，仅自己 = 0517
 const now = Date.now();
 const daysAgo = (d: number) => new Date(now - d * 86400000).toISOString();
 
 export const mockMemories: SmellMemory[] = [
   {
     id: 'mock-001',
+    visibility: 'public',
     location: '外婆家的老衣柜',
     source_guess: '陈年樟木 + 旧毛衣',
     intensity: 7,
@@ -21,6 +23,7 @@ export const mockMemories: SmellMemory[] = [
   },
   {
     id: 'mock-002',
+    visibility: 'public',
     location: '高中教室雨后的走廊',
     source_guess: '湿润的水泥地 + 草地腥气',
     intensity: 5,
@@ -36,6 +39,8 @@ export const mockMemories: SmellMemory[] = [
   },
   {
     id: 'mock-003',
+    visibility: 'family',
+    passcode_hash: '656bac45758320439f294e2d1df3b9926a06a47fa92ea195c882d89a076dd6b5',
     location: '大学图书馆五楼角落',
     source_guess: '旧纸张 + 某个人的香水',
     intensity: 4,
@@ -51,6 +56,7 @@ export const mockMemories: SmellMemory[] = [
   },
   {
     id: 'mock-004',
+    visibility: 'public',
     location: '爷爷的中药铺',
     source_guess: '甘草 + 陈皮 + 炮制过的草药',
     intensity: 9,
@@ -66,6 +72,8 @@ export const mockMemories: SmellMemory[] = [
   },
   {
     id: 'mock-005',
+    visibility: 'private',
+    passcode_hash: '79419b2b725c333a339267d9684838ba38f4613906bcf5c8132fb2d2d4a654d',
     location: '第一次租的房子的厨房',
     source_guess: '烧焦的米饭 + 抽油烟机的油污',
     intensity: 8,
@@ -81,6 +89,7 @@ export const mockMemories: SmellMemory[] = [
   },
   {
     id: 'mock-006',
+    visibility: 'public',
     location: '春天公园的樱花树下',
     source_guess: '花瓣的甜味 + 青草 + 远处的棉花糖',
     intensity: 3,
@@ -96,6 +105,7 @@ export const mockMemories: SmellMemory[] = [
   },
   {
     id: 'mock-007',
+    visibility: 'public',
     location: '老小区的楼道',
     source_guess: '谁家炖的红烧肉 + 消毒水',
     intensity: 6,
@@ -111,6 +121,8 @@ export const mockMemories: SmellMemory[] = [
   },
   {
     id: 'mock-008',
+    visibility: 'family',
+    passcode_hash: '656bac45758320439f294e2d1df3b9926a06a47fa92ea195c882d89a076dd6b5',
     location: '童年的海边',
     source_guess: '咸腥海风 + 晒过的泳衣塑料味',
     intensity: 8,

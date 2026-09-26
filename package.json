@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "check": "tsc -b --noEmit"
+    "check": "tsc -b --noEmit",
+    "test:store": "esbuild scripts/store-integration-test.ts --bundle --platform=node --format=cjs --outfile=scripts/.test-bundle.cjs --log-level=warning && node scripts/test-harness.cjs; rm -f scripts/.test-bundle.cjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",

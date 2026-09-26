@@ -1,13 +1,15 @@
-import { useEffect, useRef, useState } from 'react';
-import { X } from 'lucide-react';
-import type { SmellMemory, Season, SmellType, Emotion } from '../utils/constants';
-import { SEASONS, SMELL_TYPES, EMOTIONS } from '../utils/constants';
+import { useEffect, useState } from 'react';
+import { X, Lock, Eye, EyeOff, ShieldCheck, ShieldAlert } from 'lucide-react';
+import type { SmellMemory, Season, SmellType, Emotion, Visibility } from '../utils/constants';
+import { SEASONS, SMELL_TYPES, EMOTIONS, VISIBILITIES, getVisibilityInfo } from '../utils/constants';
 import type { MemoryInput } from '../store/memoryStore';
+import { isPasscodeValid, passcodeRuleHint, verifyPasscode, hashPasscode } from '../utils/passcode';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: MemoryInput) => void;
+  /** 返回错误信息字符串表示校验失败，返回 undefined/空表示成功 */
+  onSubmit: (data: MemoryInput, oldPasscode?: string) => Promise<string | undefined> | void;
   editingData: SmellMemory | null;
 }
 
@@ -22,14 +24,39 @@ const defaultForm: MemoryInput = {
   color_association: '#8B5A2B',
   emotion: 'nostalgic',
   want_again: true,
+  visibility: 'public',
 };
 
 const intensityTicks = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 const humidityTicks = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
+type VerifyState = 'idle' | 'checking' | 'passed';
+
 export default function MemoryModal({ isOpen, onClose, onSubmit, editingData }: Props) {
   const [form, setForm] = useState<MemoryInput>(defaultForm);
-  const modalRef = useRef<HTMLDivElement>(null);
+  const [newPasscode, setNewPasscode] = useState('');
+  const [confirmPasscode, setConfirmPasscode] = useState('');
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  // 编辑受保护记录时的旧口令核验
+  const [oldPasscode, setOldPasscode] = useState('');
+  const [showOld, setShowOld] = useState(false);
+  const [verifyState, setVerifyState] = useState<VerifyState>('idle');
+  const [verifyError, setVerifyError] = useState('');
+
+  const [formError, setFormError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const wasRestricted = !!editingData && editingData.visibility !== 'public';
+  const restricted = form.visibility !== 'public';
+  // 编辑且仍为受保护档位时，新口令留空表示沿用原口令
+  const keepOriginal =
+    !!editingData &&
+    restricted &&
+    editingData.visibility === form.visibility &&
+    newPasscode === '' &&
+    confirmPasscode === '';
 
   useEffect(() => {
     if (isOpen) {
@@ -40,11 +67,22 @@ export default function MemoryModal({ isOpen, onClose, onSubmit, editingData }: 
       } else {
         setForm(defaultForm);
       }
+      setNewPasscode('');
+      setConfirmPasscode('');
+      setShowNew(false);
+      setShowConfirm(false);
+      setOldPasscode('');
+      setShowOld(false);
+      setVerifyState(wasRestricted ? 'idle' : 'passed');
+      setVerifyError('');
+      setFormError('');
+      setSubmitting(false);
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
     }
     return () => { document.body.style.overflow = ''; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, editingData]);
 
   useEffect(() => {
@@ -57,14 +95,79 @@ export default function MemoryModal({ isOpen, onClose, onSubmit, editingData }: 
     setForm((f) => ({ ...f, [key]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const setVisibility = (v: Visibility) => {
+    update('visibility', v);
+    // 切到公开时清掉口令草稿
+    if (v === 'public') {
+      setNewPasscode('');
+      setConfirmPasscode('');
+    }
+  };
+
+  const runVerifyOld = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.location.trim()) return;
-    onSubmit(form);
-    onClose();
+    if (!editingData || verifyState === 'checking') return;
+    setVerifyState('checking');
+    setVerifyError('');
+    const ok = await verifyPasscode(oldPasscode, editingData.passcode_hash);
+    if (ok) {
+      setVerifyState('passed');
+    } else {
+      setVerifyState('idle');
+      setVerifyError('原口令不正确');
+    }
+  };
+
+  const validatePasscodes = (): string | null => {
+    if (!restricted) return null;
+    if (keepOriginal) return null;
+    if (!newPasscode) return `请设置口令（${passcodeRuleHint()}）`;
+    if (!isPasscodeValid(newPasscode)) return passcodeRuleHint();
+    if (newPasscode !== confirmPasscode) return '两次输入的口令不一致';
+    return null;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (submitting) return;
+    if (!form.location.trim()) {
+      setFormError('请填写地点');
+      return;
+    }
+    const err = validatePasscodes();
+    if (err) {
+      setFormError(err);
+      return;
+    }
+    setFormError('');
+    setSubmitting(true);
+    try {
+      // 组装提交数据：公开记录不带口令哈希
+      let data = form;
+      if (restricted) {
+        if (keepOriginal) {
+          data = { ...form, passcode_hash: editingData!.passcode_hash };
+        } else {
+          data = { ...form, passcode_hash: await hashPasscode(newPasscode) };
+        }
+      } else {
+        data = { ...form, passcode_hash: undefined };
+      }
+      const submitError = await onSubmit(data, wasRestricted ? oldPasscode || undefined : undefined);
+      if (submitError) {
+        setFormError(submitError);
+        return;
+      }
+      onClose();
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (!isOpen) return null;
+
+  const visInfo = getVisibilityInfo(form.visibility);
+  const settingsLocked = wasRestricted && verifyState !== 'passed';
 
   return (
     <div className="fixed inset-0 z-50 flex items-start md:items-center justify-center p-4 pt-8 md:p-6 overflow-y-auto">
@@ -74,7 +177,6 @@ export default function MemoryModal({ isOpen, onClose, onSubmit, editingData }: 
         style={{ animation: 'fadeIn 0.3s ease-out' }}
       />
       <div
-        ref={modalRef}
         className="relative w-full max-w-2xl bg-paper-50 rounded-3xl shadow-2xl border border-paper-300 animate-slideDown"
         style={{
           backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.54 0 0 0 0 0.35 0 0 0 0 0.18 0 0 0 0.04 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
@@ -98,11 +200,178 @@ export default function MemoryModal({ isOpen, onClose, onSubmit, editingData }: 
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {/* 可见范围 */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 pb-2 border-b border-paper-200">
+              <span className="w-1.5 h-6 bg-brick-500 rounded-full" />
+              <h3 className="font-hand text-xl text-brick-500">可见范围</h3>
+              <span className="text-xs text-ink-700/50">· 非公开内容需口令展开</span>
+            </div>
+
+            {wasRestricted && settingsLocked && (
+              <div className="p-4 rounded-2xl border border-brick-400/40 bg-brick-500/5">
+                <div className="flex items-start gap-3">
+                  <ShieldAlert className="w-5 h-5 text-brick-500 shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-ink-800 mb-0.5">
+                      这是一段「{getVisibilityInfo(editingData!.visibility).label}」记忆
+                    </p>
+                    <p className="text-xs text-ink-700/60 mb-3">
+                      调整可见范围或口令前，请先核验原口令（其他内容也需解锁后才能修改）
+                    </p>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <div className="relative flex-1">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-700/40" />
+                        <input
+                          type={showOld ? 'text' : 'password'}
+                          inputMode="numeric"
+                          autoComplete="off"
+                          maxLength={6}
+                          value={oldPasscode}
+                          onChange={(e) => { setOldPasscode(e.target.value.replace(/\D/g, '')); setVerifyError(''); }}
+                          placeholder="输入原口令（4-6 位数字）"
+                          className="w-full bg-paper-50 border border-paper-300 rounded-xl pl-9 pr-10 py-2.5 font-mono tracking-widest text-ink-800 placeholder-ink-700/35 placeholder:tracking-normal focus:outline-none focus:ring-2 focus:ring-brick-400 focus:border-transparent"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowOld((v) => !v)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-700/40 hover:text-ink-700/70"
+                          tabIndex={-1}
+                        >
+                          {showOld ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={runVerifyOld}
+                        disabled={oldPasscode.length < 4 || verifyState === 'checking'}
+                        className="btn-primary whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {verifyState === 'checking' ? '核验中…' : '核验口令'}
+                      </button>
+                    </div>
+                    {verifyError && <p className="text-xs text-brick-600 mt-2">{verifyError}</p>}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {wasRestricted && verifyState === 'passed' && (
+              <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-moss-100/70 text-moss-700 text-sm">
+                <ShieldCheck className="w-4 h-4" />
+                原口令核验通过，可以修改了
+              </div>
+            )}
+
+            <fieldset disabled={settingsLocked} className={settingsLocked ? 'opacity-50 pointer-events-none select-none' : ''}>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {VISIBILITIES.map((v) => (
+                  <button
+                    key={v.value}
+                    type="button"
+                    onClick={() => setVisibility(v.value)}
+                    className={`p-3.5 rounded-2xl border-2 text-left transition-all duration-200 ${
+                      form.visibility === v.value
+                        ? 'border-ochre-500 bg-ochre-100/60 shadow-paper scale-[1.01]'
+                        : 'border-paper-200 bg-paper-100/60 hover:border-paper-400'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className="text-lg">{v.emoji}</span>
+                      <span className="font-serif text-base font-semibold text-ink-800">{v.label}</span>
+                    </div>
+                    <p className="text-[11px] leading-snug text-ink-700/60">{v.desc}</p>
+                  </button>
+                ))}
+              </div>
+
+              {restricted && (
+                <div className="mt-4 p-4 rounded-2xl bg-paper-100/80 border border-paper-300 space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-medium text-ink-800">
+                    <Lock className="w-4 h-4 text-ochre-600" />
+                    {keepOriginal
+                      ? '沿用原口令（留空即不改）'
+                      : editingData
+                        ? '设置新口令'
+                        : '为这张卡片设置口令'}
+                    <span className="text-xs font-normal text-ink-700/50">· {passcodeRuleHint()}</span>
+                  </div>
+                  {editingData && restricted && (
+                    <button
+                      type="button"
+                      onClick={() => { setNewPasscode(''); setConfirmPasscode(''); }}
+                      className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                        keepOriginal ? 'bg-ochre-500 text-paper-50 border-ochre-600' : 'bg-paper-50 text-ink-700/70 border-paper-300 hover:border-paper-400'
+                      }`}
+                    >
+                      保持原口令不变
+                    </button>
+                  )}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs text-ink-700/60 mb-1.5">
+                        {editingData ? '新口令（留空不改）' : '口令'}
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showNew ? 'text' : 'password'}
+                          inputMode="numeric"
+                          autoComplete="new-password"
+                          maxLength={6}
+                          value={newPasscode}
+                          onChange={(e) => setNewPasscode(e.target.value.replace(/\D/g, ''))}
+                          placeholder="4-6 位数字"
+                          className="w-full bg-paper-50 border border-paper-300 rounded-xl pl-4 pr-10 py-2.5 font-mono tracking-[0.3em] text-ink-800 placeholder-ink-700/35 placeholder:tracking-normal focus:outline-none focus:ring-2 focus:ring-ochre-400 focus:border-transparent"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNew((v) => !v)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-700/40 hover:text-ink-700/70"
+                          tabIndex={-1}
+                        >
+                          {showNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-ink-700/60 mb-1.5">确认口令</label>
+                      <div className="relative">
+                        <input
+                          type={showConfirm ? 'text' : 'password'}
+                          inputMode="numeric"
+                          autoComplete="new-password"
+                          maxLength={6}
+                          value={confirmPasscode}
+                          onChange={(e) => setConfirmPasscode(e.target.value.replace(/\D/g, ''))}
+                          placeholder="再输入一次"
+                          disabled={keepOriginal}
+                          className="w-full bg-paper-50 border border-paper-300 rounded-xl pl-4 pr-10 py-2.5 font-mono tracking-[0.3em] text-ink-800 placeholder-ink-700/35 placeholder:tracking-normal focus:outline-none focus:ring-2 focus:ring-ochre-400 focus:border-transparent disabled:bg-paper-200/50"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirm((v) => !v)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-700/40 hover:text-ink-700/70"
+                          tabIndex={-1}
+                        >
+                          {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-ink-700/50 flex items-center gap-1">
+                    {visInfo.emoji} 当前档位为「{visInfo.label}」，主页默认不显示其内容，输入口令后才会展开
+                  </p>
+                </div>
+              )}
+            </fieldset>
+          </div>
+
           <div className="space-y-4">
             <div className="flex items-center gap-2 pb-2 border-b border-paper-200">
               <span className="w-1.5 h-6 bg-ochre-500 rounded-full" />
               <h3 className="font-hand text-xl text-ochre-600">基础信息</h3>
             </div>
+            <fieldset disabled={settingsLocked} className={settingsLocked ? 'opacity-50 pointer-events-none select-none' : ''}>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-ink-700 mb-1.5">地点 *</label>
@@ -126,6 +395,7 @@ export default function MemoryModal({ isOpen, onClose, onSubmit, editingData }: 
                 />
               </div>
             </div>
+            </fieldset>
           </div>
 
           <div className="space-y-4">
@@ -134,6 +404,7 @@ export default function MemoryModal({ isOpen, onClose, onSubmit, editingData }: 
               <h3 className="font-hand text-xl text-moss-600">感官属性</h3>
             </div>
 
+            <fieldset disabled={settingsLocked} className={settingsLocked ? 'opacity-50 pointer-events-none select-none' : ''}>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
               <div>
                 <div className="flex items-center justify-between mb-2">
@@ -220,7 +491,7 @@ export default function MemoryModal({ isOpen, onClose, onSubmit, editingData }: 
               </div>
             </div>
 
-            <div>
+            <div className="mt-5">
               <label className="block text-sm font-medium text-ink-700 mb-2">气味类型</label>
               <div className="flex flex-wrap gap-2">
                 {SMELL_TYPES.map((t) => (
@@ -241,6 +512,7 @@ export default function MemoryModal({ isOpen, onClose, onSubmit, editingData }: 
                 ))}
               </div>
             </div>
+            </fieldset>
           </div>
 
           <div className="space-y-4">
@@ -249,6 +521,7 @@ export default function MemoryModal({ isOpen, onClose, onSubmit, editingData }: 
               <h3 className="font-hand text-xl text-lavender-600">情感记忆</h3>
             </div>
 
+            <fieldset disabled={settingsLocked} className={settingsLocked ? 'opacity-50 pointer-events-none select-none' : ''}>
             <div>
               <label className="block text-sm font-medium text-ink-700 mb-1.5">关联记忆</label>
               <textarea
@@ -260,23 +533,23 @@ export default function MemoryModal({ isOpen, onClose, onSubmit, editingData }: 
               />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
               <div>
                 <label className="block text-sm font-medium text-ink-700 mb-2">唤起的情绪</label>
                 <div className="flex flex-wrap gap-1.5">
-                  {EMOTIONS.map((e) => (
+                  {EMOTIONS.map((em) => (
                     <button
-                      key={e.value}
+                      key={em.value}
                       type="button"
-                      onClick={() => update('emotion', e.value as Emotion)}
+                      onClick={() => update('emotion', em.value as Emotion)}
                       className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 inline-flex items-center gap-1 ${
-                        form.emotion === e.value
-                          ? `${e.bg} ${e.text} ring-2 ring-offset-1 ring-offset-paper-50 ring-ochre-300 scale-[1.03]`
+                        form.emotion === em.value
+                          ? `${em.bg} ${em.text} ring-2 ring-offset-1 ring-offset-paper-50 ring-ochre-300 scale-[1.03]`
                           : 'bg-paper-100 text-ink-700/70 hover:bg-paper-200 border border-paper-200'
                       }`}
                     >
-                      <span>{e.emoji}</span>
-                      <span>{e.label}</span>
+                      <span>{em.emoji}</span>
+                      <span>{em.label}</span>
                     </button>
                   ))}
                 </div>
@@ -300,14 +573,25 @@ export default function MemoryModal({ isOpen, onClose, onSubmit, editingData }: 
                 </div>
               </div>
             </div>
+            </fieldset>
           </div>
+
+          {formError && (
+            <p className="text-sm text-brick-600 bg-brick-500/5 border border-brick-400/30 rounded-xl px-4 py-2.5">
+              {formError}
+            </p>
+          )}
 
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-paper-200">
             <button type="button" onClick={onClose} className="btn-secondary">
               取消
             </button>
-            <button type="submit" className="btn-primary">
-              {editingData ? '保存修改' : '封存这段记忆'}
+            <button
+              type="submit"
+              disabled={settingsLocked || submitting}
+              className="btn-primary disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+            >
+              {submitting ? '保存中…' : editingData ? '保存修改' : '封存这段记忆'}
             </button>
           </div>
         </form>

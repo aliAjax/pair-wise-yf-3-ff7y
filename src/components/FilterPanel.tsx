@@ -1,4 +1,4 @@
-import { RotateCcw } from 'lucide-react';
+import { RotateCcw, Search, X } from 'lucide-react';
 import { SEASONS, SMELL_TYPES, EMOTIONS } from '../utils/constants';
 import type { Filters } from '../utils/helpers';
 
@@ -18,7 +18,7 @@ function makeSelectClass(active: boolean) {
 }
 
 export default function FilterPanel({ filters, onChange, onReset, resultCount }: Props) {
-  const hasFilter = filters.smellType || filters.season || filters.emotion;
+  const hasFilter = filters.smellType || filters.season || filters.emotion || filters.keyword;
 
   return (
     <section className="container max-w-6xl mb-6">
@@ -30,6 +30,27 @@ export default function FilterPanel({ filters, onChange, onReset, resultCount }:
           </div>
 
           <div className="flex-1 flex flex-wrap items-center gap-3">
+            <div className="relative w-full sm:w-auto sm:min-w-[200px] flex-1 sm:flex-none order-last sm:order-none">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-700/40 pointer-events-none" />
+              <input
+                type="text"
+                value={filters.keyword}
+                onChange={(e) => onChange('keyword', e.target.value)}
+                placeholder="搜索地点、来源或回忆正文"
+                className="appearance-none w-full rounded-xl pl-10 pr-9 py-2.5 border text-sm font-medium transition-all duration-200 bg-paper-50 text-ink-800 border-paper-300 hover:border-paper-400 focus:outline-none focus:ring-2 focus:ring-ochre-400 placeholder:text-ink-700/40 placeholder:font-normal"
+              />
+              {filters.keyword && (
+                <button
+                  type="button"
+                  onClick={() => onChange('keyword', '')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-700/40 hover:text-ink-700/70"
+                  aria-label="清除搜索"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
             <div className="relative">
               <select
                 value={filters.smellType}

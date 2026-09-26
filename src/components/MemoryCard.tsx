@@ -1,7 +1,7 @@
 import type { SmellMemory } from '../utils/constants';
-import { getSeasonInfo, getSmellTypeInfo, getEmotionInfo } from '../utils/constants';
+import { getSeasonInfo, getSmellTypeInfo, getEmotionInfo, getVisibilityInfo, isRestricted } from '../utils/constants';
 import { formatDate, contrastTextColor } from '../utils/helpers';
-import { Pencil, Trash2, ChevronDown, ChevronUp, Heart } from 'lucide-react';
+import { Pencil, Trash2, ChevronDown, ChevronUp, Heart, Lock, EyeOff } from 'lucide-react';
 
 interface Props {
   memory: SmellMemory;
@@ -10,12 +10,15 @@ interface Props {
   onToggle: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onReseal: () => void;
 }
 
-export default function MemoryCard({ memory, index, isExpanded, onToggle, onEdit, onDelete }: Props) {
+export default function MemoryCard({ memory, index, isExpanded, onToggle, onEdit, onDelete, onReseal }: Props) {
   const season = getSeasonInfo(memory.season);
   const stype = getSmellTypeInfo(memory.smell_type);
   const emotion = getEmotionInfo(memory.emotion);
+  const visibility = getVisibilityInfo(memory.visibility);
+  const restricted = isRestricted(memory.visibility);
 
   const intensityWidth = `${memory.intensity * 10}%`;
   const humidityWidth = `${memory.humidity * 10}%`;
@@ -79,6 +82,13 @@ export default function MemoryCard({ memory, index, isExpanded, onToggle, onEdit
                   <Heart className="w-3 h-3 fill-current" /> 想再闻
                 </span>
               )}
+              <span
+                className={`scent-tag ${restricted ? 'bg-brick-500/10 text-brick-600' : 'bg-paper-200 text-ink-700/70'}`}
+                title={visibility.desc}
+              >
+                {restricted ? <Lock className="w-3 h-3" /> : <span>{visibility.emoji}</span>}
+                {visibility.short}
+              </span>
             </div>
 
             <div className="space-y-1.5">
@@ -146,6 +156,15 @@ export default function MemoryCard({ memory, index, isExpanded, onToggle, onEdit
                   <span>更新于 {formatDate(memory.updated_at)}</span>
                 </div>
                 <div className="flex items-center gap-1">
+                  {restricted && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onReseal(); }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-lavender-600 hover:bg-lavender-300/30 transition-colors"
+                      title="本次会话收起这张卡片"
+                    >
+                      <EyeOff className="w-3.5 h-3.5" /> 封套
+                    </button>
+                  )}
                   <button
                     onClick={(e) => { e.stopPropagation(); onEdit(); }}
                     className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-ochre-600 hover:bg-ochre-100 transition-colors"

@@ -2,6 +2,9 @@ export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
 export type SmellType = 'woody' | 'floral' | 'fruity' | 'earthy' | 'spicy' | 'sweet' | 'musty' | 'fresh' | 'burnt' | 'other';
 export type Emotion = 'warm' | 'nostalgic' | 'peaceful' | 'melancholy' | 'joyful' | 'uncomfortable' | 'surprising';
 
+/** 可见范围：公开 / 家人可见 / 仅自己 */
+export type Visibility = 'public' | 'family' | 'private';
+
 export interface SmellMemory {
   id: string;
   location: string;
@@ -14,8 +17,32 @@ export interface SmellMemory {
   color_association: string;
   emotion: Emotion;
   want_again: boolean;
+  visibility: Visibility;
+  /** 四到六位数字口令的加盐哈希；公开记录为 undefined */
+  passcode_hash?: string;
   created_at: string;
   updated_at: string;
+}
+
+export const VISIBILITIES: {
+  value: Visibility;
+  label: string;
+  short: string;
+  emoji: string;
+  desc: string;
+}[] = [
+  { value: 'public', label: '公开', short: '公开', emoji: '🌍', desc: '任何人打开页面都能看到' },
+  { value: 'family', label: '家人可见', short: '家人', emoji: '👨‍👩‍👧', desc: '需输入四到六位口令展开' },
+  { value: 'private', label: '仅自己', short: '仅自己', emoji: '🔒', desc: '需输入四到六位口令展开' },
+];
+
+export function getVisibilityInfo(v: Visibility) {
+  return VISIBILITIES.find((x) => x.value === v) ?? VISIBILITIES[0];
+}
+
+/** 受口令保护的可见档位（非公开） */
+export function isRestricted(v: Visibility): boolean {
+  return v !== 'public';
 }
 
 export const SEASONS: { value: Season; label: string; emoji: string }[] = [

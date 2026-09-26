@@ -18,13 +18,23 @@ export interface Filters {
   smellType: string;
   season: string;
   emotion: string;
+  keyword: string;
 }
 
 export function filterMemories(memories: SmellMemory[], filters: Filters): SmellMemory[] {
+  const kw = filters.keyword.trim().toLowerCase();
   return memories.filter(m => {
     if (filters.smellType && m.smell_type !== filters.smellType) return false;
     if (filters.season && m.season !== filters.season) return false;
     if (filters.emotion && m.emotion !== filters.emotion) return false;
+    if (kw) {
+      const haystack = [
+        m.location,
+        m.source_guess,
+        m.memory_text,
+      ].join('\n').toLowerCase();
+      if (!haystack.includes(kw)) return false;
+    }
     return true;
   });
 }
