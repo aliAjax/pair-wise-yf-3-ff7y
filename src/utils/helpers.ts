@@ -18,13 +18,42 @@ export interface Filters {
   smellType: string;
   season: string;
   emotion: string;
+  keyword: string;
+}
+
+/**
+ * 只返回当前可见的记忆：公开的，或受保护但本次会话已解封的。
+ * 未解封的记录从这里开始就被排除，因此筛选数量、图表、搜索都拿不到它们。
+ */
+export function getVisibleMemories(
+  memories: SmellMemory[],
+  unlockedIds: string[],
+): SmellMemory[] {
+  const unlocked = new Set(unlockedIds);
+  return memories.filter((m) => m.visibility === 'public' || unlocked.has(m.id));
+}
+
+/** 未解封封套对应的记忆（受保护且本次未解锁） */
+export function getSealedMemories(
+  memories: SmellMemory[],
+  unlockedIds: string[],
+): SmellMemory[] {
+  const unlocked = new Set(unlockedIds);
+  return memories.filter((m) => m.visibility !== 'public' && !unlocked.has(m.id));
 }
 
 export function filterMemories(memories: SmellMemory[], filters: Filters): SmellMemory[] {
+  const keyword = filters.keyword.trim().toLowerCase();
   return memories.filter(m => {
     if (filters.smellType && m.smell_type !== filters.smellType) return false;
     if (filters.season && m.season !== filters.season) return false;
     if (filters.emotion && m.emotion !== filters.emotion) return false;
+    if (keyword) {
+      const haystack = [m.location, m.source_guess, m.memory_text]
+        .join(' ')
+        .toLowerCase();
+      if (!haystack.includes(keyword)) return false;
+    }
     return true;
   });
 }

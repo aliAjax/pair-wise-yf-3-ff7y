@@ -1,5 +1,5 @@
 import type { SmellMemory } from '../utils/constants';
-import { getSeasonInfo, getSmellTypeInfo, getEmotionInfo } from '../utils/constants';
+import { getSeasonInfo, getSmellTypeInfo, getEmotionInfo, getVisibilityInfo, isProtectedVisibility } from '../utils/constants';
 import { formatDate, contrastTextColor } from '../utils/helpers';
 import { Pencil, Trash2, ChevronDown, ChevronUp, Heart } from 'lucide-react';
 
@@ -16,6 +16,8 @@ export default function MemoryCard({ memory, index, isExpanded, onToggle, onEdit
   const season = getSeasonInfo(memory.season);
   const stype = getSmellTypeInfo(memory.smell_type);
   const emotion = getEmotionInfo(memory.emotion);
+  const visibility = getVisibilityInfo(memory.visibility);
+  const protected_ = isProtectedVisibility(memory.visibility);
 
   const intensityWidth = `${memory.intensity * 10}%`;
   const humidityWidth = `${memory.humidity * 10}%`;
@@ -77,6 +79,11 @@ export default function MemoryCard({ memory, index, isExpanded, onToggle, onEdit
               {memory.want_again && (
                 <span className="scent-tag bg-moss-100 text-moss-600">
                   <Heart className="w-3 h-3 fill-current" /> 想再闻
+                </span>
+              )}
+              {protected_ && (
+                <span className={`scent-tag ${visibility.tagClass}`} title="本次会话已解封，重开页面会重新封上">
+                  {visibility.emoji} {visibility.label}
                 </span>
               )}
             </div>

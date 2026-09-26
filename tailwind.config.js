@@ -80,12 +80,20 @@ export default {
         expand: {
           '0%': { opacity: '0', maxHeight: '0' },
           '100%': { opacity: '1', maxHeight: '1000px' },
+        },
+        shake: {
+          '0%, 100%': { transform: 'translateX(0)' },
+          '20%': { transform: 'translateX(-6px)' },
+          '40%': { transform: 'translateX(6px)' },
+          '60%': { transform: 'translateX(-4px)' },
+          '80%': { transform: 'translateX(4px)' },
         }
       },
       animation: {
         fadeInUp: 'fadeInUp 0.5s ease-out forwards',
         slideDown: 'slideDown 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards',
         expand: 'expand 0.4s ease-out forwards',
+        shake: 'shake 0.35s ease-in-out',
       },
     },
   },

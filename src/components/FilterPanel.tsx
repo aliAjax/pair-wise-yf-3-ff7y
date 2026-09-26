@@ -1,4 +1,4 @@
-import { RotateCcw } from 'lucide-react';
+import { RotateCcw, Search, X } from 'lucide-react';
 import { SEASONS, SMELL_TYPES, EMOTIONS } from '../utils/constants';
 import type { Filters } from '../utils/helpers';
 
@@ -17,8 +17,12 @@ function makeSelectClass(active: boolean) {
   }`;
 }
 
+function chevron(active: boolean) {
+  return `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23${active ? 'FBF7EE' : '8B5A2B'}' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`;
+}
+
 export default function FilterPanel({ filters, onChange, onReset, resultCount }: Props) {
-  const hasFilter = filters.smellType || filters.season || filters.emotion;
+  const hasFilter = !!(filters.smellType || filters.season || filters.emotion || filters.keyword.trim());
 
   return (
     <section className="container max-w-6xl mb-6">
@@ -30,13 +34,34 @@ export default function FilterPanel({ filters, onChange, onReset, resultCount }:
           </div>
 
           <div className="flex-1 flex flex-wrap items-center gap-3">
+            <div className="relative w-full sm:w-auto sm:min-w-[220px] sm:flex-1 sm:max-w-xs">
+              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-ochre-600/60 pointer-events-none" />
+              <input
+                type="text"
+                value={filters.keyword}
+                onChange={(e) => onChange('keyword', e.target.value)}
+                placeholder="搜索地点、来源或记忆正文…"
+                className="scent-input pl-9 pr-8 py-2.5"
+              />
+              {filters.keyword && (
+                <button
+                  type="button"
+                  onClick={() => onChange('keyword', '')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-ink-700/40 hover:text-ink-800 hover:bg-paper-200 transition-colors"
+                  aria-label="清除搜索"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
             <div className="relative">
               <select
                 value={filters.smellType}
                 onChange={(e) => onChange('smellType', e.target.value)}
                 className={`${makeSelectClass(!!filters.smellType)} w-full sm:w-auto`}
                 style={{
-                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23${filters.smellType ? 'FBF7EE' : '8B5A2B'}' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+                  backgroundImage: chevron(!!filters.smellType),
                   backgroundRepeat: 'no-repeat',
                   backgroundPosition: 'right 12px center',
                 }}
@@ -56,7 +81,7 @@ export default function FilterPanel({ filters, onChange, onReset, resultCount }:
                 onChange={(e) => onChange('season', e.target.value)}
                 className={`${makeSelectClass(!!filters.season)} w-full sm:w-auto`}
                 style={{
-                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23${filters.season ? 'FBF7EE' : '8B5A2B'}' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+                  backgroundImage: chevron(!!filters.season),
                   backgroundRepeat: 'no-repeat',
                   backgroundPosition: 'right 12px center',
                 }}
@@ -76,7 +101,7 @@ export default function FilterPanel({ filters, onChange, onReset, resultCount }:
                 onChange={(e) => onChange('emotion', e.target.value)}
                 className={`${makeSelectClass(!!filters.emotion)} w-full sm:w-auto`}
                 style={{
-                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23${filters.emotion ? 'FBF7EE' : '8B5A2B'}' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+                  backgroundImage: chevron(!!filters.emotion),
                   backgroundRepeat: 'no-repeat',
                   backgroundPosition: 'right 12px center',
                 }}

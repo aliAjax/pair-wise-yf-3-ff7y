@@ -1,4 +1,5 @@
-import type { SmellMemory } from '../utils/constants';
+import type { SmellMemory, EnvelopeRecord } from '../utils/constants';
+import { PRECOMPUTED_HASHES } from '../utils/privacy';
 
 const now = Date.now();
 const daysAgo = (d: number) => new Date(now - d * 86400000).toISOString();
@@ -16,6 +17,7 @@ export const mockMemories: SmellMemory[] = [
     color_association: '#8B5A2B',
     emotion: 'nostalgic',
     want_again: true,
+    visibility: 'public',
     created_at: daysAgo(42),
     updated_at: daysAgo(42),
   },
@@ -31,6 +33,7 @@ export const mockMemories: SmellMemory[] = [
     color_association: '#5A7D6A',
     emotion: 'peaceful',
     want_again: true,
+    visibility: 'public',
     created_at: daysAgo(28),
     updated_at: daysAgo(28),
   },
@@ -46,6 +49,7 @@ export const mockMemories: SmellMemory[] = [
     color_association: '#9B8AA6',
     emotion: 'melancholy',
     want_again: true,
+    visibility: 'public',
     created_at: daysAgo(18),
     updated_at: daysAgo(10),
   },
@@ -61,6 +65,7 @@ export const mockMemories: SmellMemory[] = [
     color_association: '#A0522D',
     emotion: 'warm',
     want_again: true,
+    visibility: 'public',
     created_at: daysAgo(60),
     updated_at: daysAgo(60),
   },
@@ -76,6 +81,7 @@ export const mockMemories: SmellMemory[] = [
     color_association: '#4A3728',
     emotion: 'joyful',
     want_again: false,
+    visibility: 'public',
     created_at: daysAgo(100),
     updated_at: daysAgo(55),
   },
@@ -91,6 +97,7 @@ export const mockMemories: SmellMemory[] = [
     color_association: '#F6C6D0',
     emotion: 'joyful',
     want_again: true,
+    visibility: 'public',
     created_at: daysAgo(15),
     updated_at: daysAgo(15),
   },
@@ -106,6 +113,7 @@ export const mockMemories: SmellMemory[] = [
     color_association: '#CD5C5C',
     emotion: 'warm',
     want_again: true,
+    visibility: 'public',
     created_at: daysAgo(5),
     updated_at: daysAgo(5),
   },
@@ -121,7 +129,46 @@ export const mockMemories: SmellMemory[] = [
     color_association: '#7DA08C',
     emotion: 'nostalgic',
     want_again: true,
+    visibility: 'public',
     created_at: daysAgo(3),
     updated_at: daysAgo(2),
   },
+  {
+    id: 'mock-009',
+    location: '家人可见的一段气味',
+    source_guess: '演示数据：输入口令 1234 解封',
+    intensity: 6,
+    humidity: 5,
+    season: 'winter',
+    smell_type: 'sweet',
+    memory_text: '这是一条「家人可见」的演示记忆。封套上看不到任何内容，输入口令（1234）后才会展开。试着连续输错三次，封套会进入锁定状态——此时只有正确口令能解除。重开页面后，它会重新封上。',
+    color_association: '#B08D9D',
+    emotion: 'warm',
+    want_again: true,
+    visibility: 'family',
+    created_at: daysAgo(8),
+    updated_at: daysAgo(8),
+  },
+  {
+    id: 'mock-010',
+    location: '仅自己的一段气味',
+    source_guess: '演示数据：输入口令 2468 解封',
+    intensity: 7,
+    humidity: 3,
+    season: 'autumn',
+    smell_type: 'woody',
+    memory_text: '这是一条「仅自己」的演示记忆。它不会出现在筛选数量、图表和搜索结果里，直到你用口令（2468）解封本次会话。重新打开页面，封套依旧紧锁。',
+    color_association: '#5C4A6B',
+    emotion: 'melancholy',
+    want_again: false,
+    visibility: 'self',
+    created_at: daysAgo(1),
+    updated_at: daysAgo(1),
+  },
 ];
+
+/** 演示封套：口令分别为 1234 / 2468 */
+export const mockEnvelopes: Record<string, EnvelopeRecord> = {
+  'mock-009': { passcodeHash: PRECOMPUTED_HASHES['1234'], fails: 0, locked: false },
+  'mock-010': { passcodeHash: PRECOMPUTED_HASHES['2468'], fails: 0, locked: false },
+};

@@ -1,6 +1,14 @@
 export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
 export type SmellType = 'woody' | 'floral' | 'fruity' | 'earthy' | 'spicy' | 'sweet' | 'musty' | 'fresh' | 'burnt' | 'other';
 export type Emotion = 'warm' | 'nostalgic' | 'peaceful' | 'melancholy' | 'joyful' | 'uncomfortable' | 'surprising';
+export type Visibility = 'public' | 'family' | 'self';
+
+/** 封套：受保护记忆的口令与锁定状态，和记忆本体分开存放，删记录时一起清掉 */
+export interface EnvelopeRecord {
+  passcodeHash: string;
+  fails: number;
+  locked: boolean;
+}
 
 export interface SmellMemory {
   id: string;
@@ -14,8 +22,22 @@ export interface SmellMemory {
   color_association: string;
   emotion: Emotion;
   want_again: boolean;
+  visibility: Visibility;
   created_at: string;
   updated_at: string;
+}
+
+export const VISIBILITY_LEVELS: { value: Visibility; label: string; emoji: string; desc: string; tagClass: string }[] = [
+  { value: 'public', label: '公开', emoji: '🌿', desc: '主页直接展示，任何人都能翻阅', tagClass: 'bg-moss-100 text-moss-600' },
+  { value: 'family', label: '家人可见', emoji: '🏡', desc: '封入封套，输入口令后家人可展开', tagClass: 'bg-lavender-300/40 text-lavender-600' },
+  { value: 'self', label: '仅自己', emoji: '🔒', desc: '封入封套，只有持口令的你能展开', tagClass: 'bg-ink-800/10 text-ink-700' },
+];
+
+export function getVisibilityInfo(v: Visibility) {
+  return VISIBILITY_LEVELS.find(x => x.value === v) ?? VISIBILITY_LEVELS[0];
+}
+export function isProtectedVisibility(v: Visibility): boolean {
+  return v !== 'public';
 }
 
 export const SEASONS: { value: Season; label: string; emoji: string }[] = [

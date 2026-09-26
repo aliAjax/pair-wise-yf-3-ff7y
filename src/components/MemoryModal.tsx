@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { X } from 'lucide-react';
-import type { SmellMemory, Season, SmellType, Emotion } from '../utils/constants';
-import { SEASONS, SMELL_TYPES, EMOTIONS } from '../utils/constants';
-import type { MemoryInput } from '../store/memoryStore';
+import { X, ShieldCheck, Lock, KeyRound, AlertCircle } from 'lucide-react';
+import type { SmellMemory, Season, SmellType, Emotion, Visibility } from '../utils/constants';
+import { SEASONS, SMELL_TYPES, EMOTIONS, VISIBILITY_LEVELS } from '../utils/constants';
+import type { MemoryInput, SecuritySubmit } from '../store/memoryStore';
+import { isValidPasscodeFormat, PASSCODE_PATTERN_HINT } from '../utils/privacy';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: MemoryInput) => void;
+  onSubmit: (data: MemoryInput, security: SecuritySubmit) => Promise<boolean>;
   editingData: SmellMemory | null;
 }
 
@@ -22,6 +23,7 @@ const defaultForm: MemoryInput = {
   color_association: '#8B5A2B',
   emotion: 'nostalgic',
   want_again: true,
+  visibility: 'public',
 };
 
 const intensityTicks = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -29,7 +31,22 @@ const humidityTicks = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
 export default function MemoryModal({ isOpen, onClose, onSubmit, editingData }: Props) {
   const [form, setForm] = useState<MemoryInput>(defaultForm);
+  const [oldPasscode, setOldPasscode] = useState('');
+  const [newPasscode, setNewPasscode] = useState('');
+  const [confirmPasscode, setConfirmPasscode] = useState('');
+  const [securityError, setSecurityError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
+
+  const isEdit = !!editingData;
+  const wasProtected = !!editingData && editingData.visibility !== 'public';
+  const targetProtected = form.visibility !== 'public';
+  // 需要新建封套：新增受保护记录，或把公开记录改成受保护
+  const needNewPasscode = targetProtected && (!isEdit || !wasProtected);
+  // 原本受保护、且正在调整范围或口令时，必须先核旧口令
+  const needOldPasscode =
+    wasProtected &&
+    (form.visibility !== editingData!.visibility || newPasscode.length > 0);
 
   useEffect(() => {
     if (isOpen) {
@@ -40,6 +57,11 @@ export default function MemoryModal({ isOpen, onClose, onSubmit, editingData }: 
       } else {
         setForm(defaultForm);
       }
+      setOldPasscode('');
+      setNewPasscode('');
+      setConfirmPasscode('');
+      setSecurityError(null);
+      setSubmitting(false);
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
@@ -55,16 +77,54 @@ export default function MemoryModal({ isOpen, onClose, onSubmit, editingData }: 
 
   const update = <K extends keyof MemoryInput>(key: K, value: MemoryInput[K]) => {
     setForm((f) => ({ ...f, [key]: value }));
+    setSecurityError(null);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const validateSecurity = (): string | null => {
+    if (!targetProtected) {
+      // 从受保护转为公开：必须核旧口令
+      if (wasProtected && !oldPasscode) return '转为公开前，请先输入当前口令以核验身份';
+      return null;
+    }
+    if (needOldPasscode && !oldPasscode) return '调整可见范围或口令前，请先输入当前口令';
+    if (newPasscode) {
+      if (!isValidPasscodeFormat(newPasscode)) return `新口令必须是 ${PASSCODE_PATTERN_HINT}`;
+      if (newPasscode !== confirmPasscode) return '两次输入的新口令不一致';
+    }
+    if (needNewPasscode) {
+      if (!newPasscode) return `该可见范围需要设置 ${PASSCODE_PATTERN_HINT} 口令`;
+      if (!isValidPasscodeFormat(newPasscode)) return `口令必须是 ${PASSCODE_PATTERN_HINT}`;
+      if (newPasscode !== confirmPasscode) return '两次输入的口令不一致';
+    }
+    return null;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.location.trim()) return;
-    onSubmit(form);
-    onClose();
+    if (!form.location.trim() || submitting) return;
+    const err = validateSecurity();
+    if (err) { setSecurityError(err); return; }
+
+    const security: SecuritySubmit = {
+      visibility: form.visibility,
+      oldPasscode: wasProtected ? oldPasscode : undefined,
+      newPasscode: newPasscode || undefined,
+    };
+
+    setSubmitting(true);
+    const ok = await onSubmit(form, security);
+    setSubmitting(false);
+    if (ok) {
+      onClose();
+    } else {
+      setSecurityError('当前口令不正确，封套设置未更改');
+    }
   };
 
   if (!isOpen) return null;
+
+  const passcodeInputCls = (value: string) =>
+    `scent-input tracking-[0.3em] ${value && !isValidPasscodeFormat(value) ? 'border-brick-400 focus:ring-brick-400' : ''}`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-start md:items-center justify-center p-4 pt-8 md:p-6 overflow-y-auto">
@@ -98,6 +158,131 @@ export default function MemoryModal({ isOpen, onClose, onSubmit, editingData }: 
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {/* 可见范围 / 封套口令 */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 pb-2 border-b border-paper-200">
+              <span className="w-1.5 h-6 bg-lavender-500 rounded-full" />
+              <h3 className="font-hand text-xl text-lavender-600">可见范围</h3>
+              {wasProtected && (
+                <span className="ml-auto text-xs text-ink-700/50">
+                  当前：{VISIBILITY_LEVELS.find((v) => v.value === editingData!.visibility)?.label}
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              {VISIBILITY_LEVELS.map((v) => (
+                <button
+                  key={v.value}
+                  type="button"
+                  onClick={() => update('visibility', v.value as Visibility)}
+                  className={`text-left p-3 rounded-2xl border-2 transition-all duration-200 ${
+                    form.visibility === v.value
+                      ? 'border-ochre-500 bg-ochre-50 shadow-paper scale-[1.01]'
+                      : 'border-paper-200 bg-paper-100/60 hover:bg-paper-100 hover:border-paper-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="text-lg">{v.emoji}</span>
+                    <span className="font-serif text-base font-semibold text-ink-800">{v.label}</span>
+                    {form.visibility === v.value && <ShieldCheck className="w-4 h-4 text-ochre-500 ml-auto" />}
+                  </div>
+                  <p className="text-[11px] leading-snug text-ink-700/60">{v.desc}</p>
+                </button>
+              ))}
+            </div>
+
+            {targetProtected && (
+              <div className="p-4 rounded-2xl bg-lavender-300/15 border border-lavender-300/40 space-y-4">
+                {needOldPasscode && (
+                  <div>
+                    <label className="flex items-center gap-1.5 text-sm font-medium text-ink-700 mb-1.5">
+                      <KeyRound className="w-4 h-4 text-lavender-600" />
+                      核验当前口令
+                    </label>
+                    <input
+                      type="password"
+                      inputMode="numeric"
+                      maxLength={6}
+                      autoComplete="off"
+                      value={oldPasscode}
+                      onChange={(e) => { setOldPasscode(e.target.value.replace(/\D/g, '').slice(0, 6)); setSecurityError(null); }}
+                      placeholder={`输入当前 ${PASSCODE_PATTERN_HINT} 口令`}
+                      className={passcodeInputCls(oldPasscode)}
+                    />
+                    <p className="text-[11px] text-ink-700/50 mt-1">调整可见范围或口令前，需先核验旧口令</p>
+                  </div>
+                )}
+                {wasProtected && !needOldPasscode && (
+                  <p className="flex items-center gap-1.5 text-xs text-ink-700/60">
+                    <Lock className="w-3.5 h-3.5 text-lavender-600" />
+                    范围与口令均未改动时无需重新核验；想换口令可在下方输入新口令（同样需先核验当前口令）
+                  </p>
+                )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-ink-700 mb-1.5">
+                      {needNewPasscode ? '设置口令 *' : '新口令（留空则不变）'}
+                    </label>
+                    <input
+                      type="password"
+                      inputMode="numeric"
+                      maxLength={6}
+                      autoComplete="new-password"
+                      value={newPasscode}
+                      onChange={(e) => { setNewPasscode(e.target.value.replace(/\D/g, '').slice(0, 6)); setSecurityError(null); }}
+                      placeholder={PASSCODE_PATTERN_HINT}
+                      className={passcodeInputCls(newPasscode)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-ink-700 mb-1.5">确认口令</label>
+                    <input
+                      type="password"
+                      inputMode="numeric"
+                      maxLength={6}
+                      autoComplete="new-password"
+                      value={confirmPasscode}
+                      onChange={(e) => { setConfirmPasscode(e.target.value.replace(/\D/g, '').slice(0, 6)); setSecurityError(null); }}
+                      placeholder="再输入一次"
+                      className={passcodeInputCls(confirmPasscode)}
+                    />
+                  </div>
+                </div>
+                <p className="text-[11px] text-ink-700/50">
+                  口令为 {PASSCODE_PATTERN_HINT}，记忆会封入封套；主页默认只显示公开内容，输入口令后才展开。同一口令可解封多条记忆。
+                </p>
+              </div>
+            )}
+
+            {wasProtected && !targetProtected && (
+              <div className="p-4 rounded-2xl bg-paper-100 border border-paper-300 space-y-3">
+                <label className="flex items-center gap-1.5 text-sm font-medium text-ink-700 mb-0">
+                  <KeyRound className="w-4 h-4 text-ochre-600" />
+                  核验当前口令
+                </label>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={6}
+                  autoComplete="off"
+                  value={oldPasscode}
+                  onChange={(e) => { setOldPasscode(e.target.value.replace(/\D/g, '').slice(0, 6)); setSecurityError(null); }}
+                  placeholder={`输入当前 ${PASSCODE_PATTERN_HINT} 口令以解除封套`}
+                  className={passcodeInputCls(oldPasscode)}
+                />
+                <p className="text-[11px] text-ink-700/50">转为公开后封套将被移除，任何人都能直接翻阅这条记忆</p>
+              </div>
+            )}
+
+            {securityError && (
+              <p className="flex items-center gap-1.5 text-sm text-brick-600 font-medium">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                {securityError}
+              </p>
+            )}
+          </div>
+
           <div className="space-y-4">
             <div className="flex items-center gap-2 pb-2 border-b border-paper-200">
               <span className="w-1.5 h-6 bg-ochre-500 rounded-full" />
@@ -306,8 +491,8 @@ export default function MemoryModal({ isOpen, onClose, onSubmit, editingData }: 
             <button type="button" onClick={onClose} className="btn-secondary">
               取消
             </button>
-            <button type="submit" className="btn-primary">
-              {editingData ? '保存修改' : '封存这段记忆'}
+            <button type="submit" disabled={submitting} className="btn-primary disabled:opacity-50">
+              {submitting ? '封存中…' : editingData ? '保存修改' : '封存这段记忆'}
             </button>
           </div>
         </form>

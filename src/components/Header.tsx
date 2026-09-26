@@ -1,11 +1,12 @@
-import { Plus } from 'lucide-react';
+import { Plus, Lock } from 'lucide-react';
 
 interface Props {
   onAdd: () => void;
   memoryCount: number;
+  sealedCount?: number;
 }
 
-export default function Header({ onAdd, memoryCount }: Props) {
+export default function Header({ onAdd, memoryCount, sealedCount = 0 }: Props) {
   return (
     <header className="relative pt-14 pb-8 md:pt-20 md:pb-12">
       <div className="container max-w-6xl">
@@ -31,6 +32,15 @@ export default function Header({ onAdd, memoryCount }: Props) {
                 <span className="text-base">🌿</span>
                 仅你可见
               </span>
+              {sealedCount > 0 && (
+                <span
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-lavender-300/25 text-lavender-600 text-sm border border-lavender-300/50"
+                  title="封套中的记忆需口令展开，重开页面后重新封上"
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  {sealedCount} 段封套中
+                </span>
+              )}
             </div>
           </div>
           <button
